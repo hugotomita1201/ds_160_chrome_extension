@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "DS-160 Auto-Filler",
+  "version": "1.0.0",
+  "description": "Auto-fill DS-160 visa forms with extracted data",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://ceac.state.gov/*"
+  ],
+  "externally_connectable": {
+    "matches": [
+      "https://i129-pdf-filler.vercel.app/*",
+      "https://i129-backend-452425445497.us-central1.run.app/*"
+    ]
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "assets/icons/icon16.png",
+      "48": "assets/icons/icon48.png",
+      "128": "assets/icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "assets/icons/icon16.png",
+    "48": "assets/icons/icon48.png",
+    "128": "assets/icons/icon128.png"
+  }
+}
