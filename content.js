@@ -223,7 +223,7 @@ class TwoPassFiller {
       'ctl00_SiteContentPlaceHolder_FormView1_tbxAPP_GIVEN_NAME': data.personal?.givenName,
       'ctl00_SiteContentPlaceHolder_FormView1_tbxAPP_FULL_NAME_NATIVE': data.personal?.fullNameNative,
       'ctl00_SiteContentPlaceHolder_FormView1_ddlDOBDay': this.parseDate(data.personal?.dateOfBirth)?.day,
-      'ctl00_SiteContentPlaceHolder_FormView1_ddlDOBMonth': this.getMonthNumber(data.personal?.dateOfBirth),
+      'ctl00_SiteContentPlaceHolder_FormView1_ddlDOBMonth': this.getMonthNumber(data.personal?.dateOfBirth), // Returns "SEP", "APR", etc.
       'ctl00_SiteContentPlaceHolder_FormView1_tbxDOBYear': this.parseDate(data.personal?.dateOfBirth)?.year,
       
       // Gender - Now a dropdown instead of radio buttons
@@ -957,33 +957,41 @@ class TwoPassFiller {
     return null;
   }
 
-  // Parse date string and return month number
+  // Parse date string and return month value for DS-160 dropdowns
   getMonthNumber(dateStr) {
-    if (!dateStr) return null;
+    if (!dateStr || dateStr === 'N/A') return null;
     
-    const monthMap = {
-      'JAN': '01', 'FEB': '02', 'MAR': '03', 'APR': '04',
-      'MAY': '05', 'JUN': '06', 'JUL': '07', 'AUG': '08',
-      'SEP': '09', 'OCT': '10', 'NOV': '11', 'DEC': '12'
-    };
+    // DS-160 month dropdowns expect the month abbreviation (e.g., "JAN", "FEB", "SEP")
+    // NOT the numeric value
     
-    // Check for month name (e.g., "20-SEP-1991")
+    // Check for month name format (e.g., "20-SEP-1991")
     const parts = dateStr.toUpperCase().split('-');
+    const monthAbbreviations = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 
+                                 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+    
     for (const part of parts) {
-      if (monthMap[part]) {
-        return monthMap[part];
+      if (monthAbbreviations.includes(part)) {
+        // Return the month abbreviation directly (e.g., "SEP")
+        return part;
       }
     }
     
-    // Check for numeric month (e.g., "1991-09-20")
+    // If numeric format (e.g., "1991-09-20"), convert to abbreviation
     const numericParts = dateStr.split(/[-/]/);
     if (numericParts.length === 3) {
+      let monthNum;
       if (numericParts[0].length === 4) {
         // YYYY-MM-DD format
-        return numericParts[1].padStart(2, '0');
-      } else {
-        // MM-DD-YYYY or DD-MM-YYYY
-        return numericParts[0].padStart(2, '0');
+        monthNum = parseInt(numericParts[1]);
+      } else if (numericParts[2].length === 4) {
+        // DD-MM-YYYY or MM-DD-YYYY
+        // Assume MM-DD-YYYY for US format
+        monthNum = parseInt(numericParts[0]);
+      }
+      
+      if (monthNum >= 1 && monthNum <= 12) {
+        // Return the month abbreviation
+        return monthAbbreviations[monthNum - 1];
       }
     }
     
