@@ -274,7 +274,11 @@ class TwoPassFiller {
       'ctl00_SiteContentPlaceHolder_FormView1_tbxAPP_GIVEN_NAME': data.personal?.givenName,
       'ctl00_SiteContentPlaceHolder_FormView1_tbxAPP_FULL_NAME_NATIVE': data.personal?.fullNameNative,
       'ctl00_SiteContentPlaceHolder_FormView1_ddlDOBDay': this.parseDate(data.personal?.dateOfBirth)?.day,
-      'ctl00_SiteContentPlaceHolder_FormView1_ddlDOBMonth': this.getMonthNumber(data.personal?.dateOfBirth), // Returns "SEP", "APR", etc.
+      'ctl00_SiteContentPlaceHolder_FormView1_ddlDOBMonth': (() => {
+        const month = this.getMonthNumber(data.personal?.dateOfBirth);
+        console.log(`DOB Month mapping: dateOfBirth="${data.personal?.dateOfBirth}" -> month="${month}"`);
+        return month;
+      })(),
       'ctl00_SiteContentPlaceHolder_FormView1_tbxDOBYear': this.parseDate(data.personal?.dateOfBirth)?.year,
       
       // Gender - Now a dropdown instead of radio buttons
@@ -1012,6 +1016,8 @@ class TwoPassFiller {
   getMonthNumber(dateStr) {
     if (!dateStr || dateStr === 'N/A') return null;
     
+    console.log(`getMonthNumber called with: ${dateStr}`);
+    
     // DS-160 month dropdowns expect the month abbreviation (e.g., "JAN", "FEB", "SEP")
     // NOT the numeric value
     
@@ -1020,9 +1026,12 @@ class TwoPassFiller {
     const monthAbbreviations = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 
                                  'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
     
+    console.log(`Date parts: ${parts.join(', ')}`);
+    
     for (const part of parts) {
       if (monthAbbreviations.includes(part)) {
         // Return the month abbreviation directly (e.g., "SEP")
+        console.log(`Found month abbreviation: ${part}`);
         return part;
       }
     }
@@ -1042,10 +1051,13 @@ class TwoPassFiller {
       
       if (monthNum >= 1 && monthNum <= 12) {
         // Return the month abbreviation
-        return monthAbbreviations[monthNum - 1];
+        const monthAbbr = monthAbbreviations[monthNum - 1];
+        console.log(`Converted numeric month ${monthNum} to ${monthAbbr}`);
+        return monthAbbr;
       }
     }
     
+    console.log(`Could not parse month from: ${dateStr}`);
     return null;
   }
 
