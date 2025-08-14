@@ -235,6 +235,54 @@ class TwoPassFiller {
 
   // Find matching value in data for a field ID
   findMatchingValue(fieldId, data) {
+    // Special handling for ALL month dropdowns - MUST come before field mappings
+    // Handle date of birth month
+    if (fieldId === 'ctl00_SiteContentPlaceHolder_FormView1_ddlDOBMonth') {
+      const dateStr = data.personal?.dateOfBirth;
+      console.log(`DOB Month special handling: date="${dateStr}"`);
+      const month = this.getMonthNumber(dateStr);
+      console.log(`DOB Month result: "${month}"`);
+      return month;
+    }
+    
+    // Handle travel date months
+    if (fieldId === 'ctl00_SiteContentPlaceHolder_FormView1_ddlTRAVEL_DTEMonth') {
+      return this.getMonthNumber(data.travel?.intendedTravelDate);
+    }
+    if (fieldId === 'ctl00_SiteContentPlaceHolder_FormView1_ddlARRIVAL_US_DTEMonth') {
+      return this.getMonthNumber(data.travel?.intendedArrivalDate);
+    }
+    if (fieldId === 'ctl00_SiteContentPlaceHolder_FormView1_ddlDEPARTURE_US_DTEMonth') {
+      return this.getMonthNumber(data.travel?.intendedDepartureDate);
+    }
+    
+    // Handle passport date months
+    if (fieldId === 'ctl00_SiteContentPlaceHolder_FormView1_ddlPPT_ISSUED_DTEMonth') {
+      return this.getMonthNumber(data.passport?.issueDate);
+    }
+    if (fieldId === 'ctl00_SiteContentPlaceHolder_FormView1_ddlPPT_EXPIRE_DTEMonth') {
+      return this.getMonthNumber(data.passport?.expirationDate);
+    }
+    
+    // Handle employment date month
+    if (fieldId === 'ctl00_SiteContentPlaceHolder_FormView1_ddlEmpDateFromMonth') {
+      return this.getMonthNumber(data.workEducation?.presentEmployer?.startDate || data.workEducation?.employmentStartDate);
+    }
+    
+    // Handle previous visa date month
+    if (fieldId === 'ctl00_SiteContentPlaceHolder_FormView1_ddlPREV_VISA_ISSUED_DTEMonth') {
+      return this.getMonthNumber(data.previousTravel?.previousVisa?.issueDate);
+    }
+    
+    // Handle previous US visit date months (dynamic fields)
+    if (fieldId.includes('PREV_US_VISIT') && fieldId.includes('Month')) {
+      const match = fieldId.match(/ctl(\d+)/);
+      if (match) {
+        const index = parseInt(match[1]);
+        return this.getMonthNumber(data.previousTravel?.visits?.[index]?.arrivalDate);
+      }
+    }
+    
     // Special handling for SSN fields
     if (fieldId === 'ctl00_SiteContentPlaceHolder_FormView1_tbxAPP_SSN1') {
       const ssn = this.parseSSN(data.personal?.usSocialSecurity);
@@ -274,11 +322,8 @@ class TwoPassFiller {
       'ctl00_SiteContentPlaceHolder_FormView1_tbxAPP_GIVEN_NAME': data.personal?.givenName,
       'ctl00_SiteContentPlaceHolder_FormView1_tbxAPP_FULL_NAME_NATIVE': data.personal?.fullNameNative,
       'ctl00_SiteContentPlaceHolder_FormView1_ddlDOBDay': this.parseDate(data.personal?.dateOfBirth)?.day,
-      'ctl00_SiteContentPlaceHolder_FormView1_ddlDOBMonth': (() => {
-        const month = this.getMonthNumber(data.personal?.dateOfBirth);
-        console.log(`DOB Month mapping: dateOfBirth="${data.personal?.dateOfBirth}" -> month="${month}"`);
-        return month;
-      })(),
+      // Month will be handled specially in findMatchingValue to ensure proper conversion
+      'ctl00_SiteContentPlaceHolder_FormView1_ddlDOBMonth': null, // Special handling in findMatchingValue
       'ctl00_SiteContentPlaceHolder_FormView1_tbxDOBYear': this.parseDate(data.personal?.dateOfBirth)?.year,
       
       // Gender - Now a dropdown instead of radio buttons
