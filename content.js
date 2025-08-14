@@ -94,6 +94,12 @@ class TwoPassFiller {
         const options = Array.from(element.options);
         let matched = false;
         
+        // Debug logging for month dropdowns
+        if (fieldId.includes('Month')) {
+          console.log(`Setting month dropdown ${fieldId} with value: ${value}`);
+          console.log('Available options:', options.map(o => ({ value: o.value, text: o.text })));
+        }
+        
         // Try exact match first
         for (const option of options) {
           if (option.value === value || option.text === value) {
@@ -111,6 +117,51 @@ class TwoPassFiller {
               element.value = option.value;
               matched = true;
               break;
+            }
+          }
+        }
+        
+        // Special handling for month dropdowns
+        if (!matched && fieldId.includes('Month')) {
+          // Try to match month in various formats
+          const monthMappings = {
+            'JAN': ['JAN', 'JANUARY', '01', '1'],
+            'FEB': ['FEB', 'FEBRUARY', '02', '2'],
+            'MAR': ['MAR', 'MARCH', '03', '3'],
+            'APR': ['APR', 'APRIL', '04', '4'],
+            'MAY': ['MAY', 'MAY', '05', '5'],
+            'JUN': ['JUN', 'JUNE', '06', '6'],
+            'JUL': ['JUL', 'JULY', '07', '7'],
+            'AUG': ['AUG', 'AUGUST', '08', '8'],
+            'SEP': ['SEP', 'SEPTEMBER', '09', '9'],
+            'OCT': ['OCT', 'OCTOBER', '10', '10'],
+            'NOV': ['NOV', 'NOVEMBER', '11', '11'],
+            'DEC': ['DEC', 'DECEMBER', '12', '12']
+          };
+          
+          // Find which month we're trying to set
+          let targetMonth = null;
+          for (const [abbr, variants] of Object.entries(monthMappings)) {
+            if (value === abbr || variants.includes(value.toUpperCase())) {
+              targetMonth = abbr;
+              break;
+            }
+          }
+          
+          if (targetMonth) {
+            // Try to find an option that matches any variant of this month
+            for (const option of options) {
+              const optVal = option.value.toUpperCase();
+              const optText = option.text.toUpperCase();
+              
+              if (optVal === targetMonth || optText === targetMonth ||
+                  monthMappings[targetMonth].includes(optVal) ||
+                  monthMappings[targetMonth].includes(optText)) {
+                element.value = option.value;
+                matched = true;
+                console.log(`Matched month ${targetMonth} to option value: ${option.value}`);
+                break;
+              }
             }
           }
         }
