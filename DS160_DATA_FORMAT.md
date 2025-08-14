@@ -168,7 +168,7 @@ const ds160Data = {
     previousVisa: {
       hasVisa: true,
       issueDate: "05-JAN-2018",
-      visaNumber: "12345678901234",      // Red foil number
+      visaNumber: "12345678901234",      // Red foil number, use "N/A" or "Do Not Know" if unknown
       sameType: true,                    // Applying for same visa type
       sameCountry: true,                 // Applying at same country
       tenPrinted: true,                  // Had fingerprints taken
@@ -536,6 +536,7 @@ The following fields have N/A checkboxes that are automatically checked when the
 - `nationalId` → checks `cbxAPP_NATIONAL_ID_NA`
 - `usSocialSecurity` → checks `cbxAPP_SSN_NA`
 - `usTaxId` → checks `cbxAPP_TAX_ID_NA`
+- `previousVisa.visaNumber` → checks `cbxPREV_VISA_FOIL_NUMBER_NA` (when "N/A", "Do Not Know", or empty)
 
 ### SSN Field Splitting
 If the form has separate SSN boxes, the extension automatically splits:

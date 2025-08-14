@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "DS-160 Auto-Filler",
-  "version": "1.0.2",
+  "version": "3.10.0",
   "description": "Auto-fill DS-160 visa forms with extracted data",
   "permissions": [
     "storage",
@@ -10,6 +10,13 @@
   ],
   "host_permissions": [
     "https://ceac.state.gov/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://ceac.state.gov/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
   ],
   "externally_connectable": {
     "matches": [
