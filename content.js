@@ -7,7 +7,7 @@ console.log('DS-160 Two-Pass Auto-Filler (Complete Field Support) loaded');
 const CONFIG = {
   fillDelay: 100,
   passDelay: 3500,  // Increased to allow dynamic petition field to load
-  maxPasses: 3,
+  maxPasses: 2,  // Reduced from 3 to prevent aggressive re-filling
 };
 
 class TwoPassFiller {
@@ -44,24 +44,19 @@ class TwoPassFiller {
   
   // Enhanced logging that saves to both console and localStorage
   log(message, data = null) {
+    // Simplified logging - only log errors and critical messages
+    if (message.includes('ERROR') || message.includes('CRASH')) {
+      console.error(`[DS160] ${message}`, data || '');
+    }
+    
+    // Store in buffer for crash recovery
     const timestamp = new Date().toISOString();
-    const logEntry = {
+    this.debugLog.push({
       time: timestamp,
       message: message,
       data: data,
-      page: this.detectCurrentPage(),
       url: window.location.href
-    };
-    
-    // Log to console
-    if (data) {
-      console.log(`[${timestamp}] ${message}`, data);
-    } else {
-      console.log(`[${timestamp}] ${message}`);
-    }
-    
-    // Add to buffer
-    this.debugLog.push(logEntry);
+    });
   }
   
   // Method to retrieve and display crash logs
@@ -90,6 +85,110 @@ class TwoPassFiller {
     localStorage.removeItem('ds160_debug_logs');
     localStorage.removeItem('ds160_last_log_time');
     console.log('Debug logs cleared');
+  }
+
+  // Check if a field belongs to the current page
+  isFieldOnCurrentPage(fieldId, currentPage) {
+    // Page-specific field prefixes
+    const pageFieldPatterns = {
+      'personal1': [
+        'tbxAPP_SURNAME', 'tbxAPP_GIVEN_NAME', 'tbxAPP_FULL_NAME_NATIVE',
+        'ddlAPP_GENDER', 'ddlAPP_MARITAL_STATUS', 'tbxAPP_POB',
+        'DListAlias', 'ddlDOBDay', 'ddlDOBMonth', 'tbxDOBYear'
+      ],
+      'personal2': [
+        'ddlAPP_NATL', 'ddlOtherNationality', 'tbxAPP_NATIONAL_ID',
+        'tbxAPP_SSN', 'tbxAPP_TAX_ID'
+      ],
+      'travel': [
+        'ddlPurposeOfTrip', 'tbxSpecificTravel', 'tbxIntendedArrivalDate',
+        'tbxTRAVEL_LOS', 'tbxArriveFlight', 'tbxDepartFlight',
+        'tbxWhoIsPaying', 'tbxPayerAddress', 'tbxPayerTel',
+        'tbxPrincipleApp', 'tbxMissionOrg'
+      ],
+      'travelCompanions': [
+        'rblTravelingWithYou', 'dtlTravelingWithYou', 'rblGroupTravel'
+      ],
+      'previousTravel': [
+        'rblPREV_US_TRAVEL', 'dtlPREV_US_VISIT', 'dtlUS_DRIVER_LICENSE',
+        'PREV_VISA', 'rblPREV_VISA_REFUSED', 'tbxPREV_VISA_REFUSED_EXPL'
+      ],
+      'addressPhone': [
+        'tbxAPP_ADDR_LN1', 'tbxAPP_ADDR_LN2', 'tbxAPP_ADDR_CITY',
+        'ddlAPP_ADDR_STATE', 'tbxAPP_ADDR_POSTAL_CD', 'ddlAPP_ADDR_CNTRY',
+        'tbxAPP_HOME_TEL', 'tbxAPP_MOBILE_TEL', 'tbxAPP_BUS_TEL',
+        'tbxAPP_EMAIL', 'tbxAPP_HOME_ADDR'
+      ],
+      'contact': [
+        'rblAddSocial', 'dtlSocial', 'tbxSocialMediaIdent', 'ddlSocialMediaProvider'
+      ],
+      'usContact': [
+        'tbxUS_POC_SURNAME', 'tbxUS_POC_GIVEN_NAME', 'tbxUS_POC_ORGANIZATION',
+        'ddlUS_POC_REL_TO_APP', 'tbxUS_POC_ADDR_LN1', 'tbxUS_POC_ADDR_CITY',
+        'ddlUS_POC_ADDR_STATE', 'tbxUS_POC_ADDR_POSTAL_CD', 'tbxUS_POC_TEL',
+        'tbxUS_POC_EMAIL'
+      ],
+      'passport': [
+        'ddlPPT_TYPE', 'tbxPPT_NUM', 'tbxPPT_BOOK_NUM', 'ddlPPT_ISSUED_CNTRY',
+        'tbxPPT_ISSUED_IN_CITY', 'tbxPPT_ISSUED_IN_STATE', 'ddlPPT_ISSUED_IN_CNTRY',
+        'ddlPPT_ISSUED_DTEDay', 'ddlPPT_ISSUED_DTEMonth', 'tbxPPT_ISSUED_DTEYear',
+        'ddlPPT_EXPIRE_DTEDay', 'ddlPPT_EXPIRE_DTEMonth', 'tbxPPT_EXPIRE_DTEYear',
+        'rblLOST_PPT', 'tbxLOST_PPT_NUM', 'ddlLOST_PPT_CNTRY'
+      ],
+      'family': [
+        'tbxFATHER_SURNAME', 'tbxFATHER_GIVEN_NAME', 'ddlFathersDOBDay',
+        'tbxMOTHER_SURNAME', 'tbxMOTHER_GIVEN_NAME', 'ddlMothersDOBDay',
+        'rblUS_IMMED_RELATIVE', 'ddlUS_IMMED_RELATIVE_TYPE',
+        'rblUS_OTHER_RELATIVE', 'rblSPOUSE_IND',
+        'tbxSpouseSurname', 'tbxSpouseGivenName', 'ddlSpouseDOBDay',
+        'ddlSpouseNatl', 'tbxSpousePOBCity', 'ddlSpousePOBCountry',
+        'ddlSpouseAddressType', 'tbxSpouseAddress'
+      ],
+      'workEducation': [
+        'ddlPresentOccupation', 'tbxEmpSchName', 'tbxEmpSchAddr1',
+        'tbxEmpSchAddr2', 'tbxEmpSchCity', 'ddlEmpSchState',
+        'tbxEmpSchPostalCd', 'ddlEmpSchCountry', 'tbxEmpSchTel',
+        'tbxCURR_MONTHLY_SALARY', 'ddlCURR_MONTHLY_SALARY_CURRENCY',
+        'tbxDescribeDuties'
+      ],
+      'workEducationPrevious': [
+        'dtlPrevEmpl', 'dtlPrevEduc', 'tbEmployerName', 'tbEmployerStreetAddress1',
+        'tbEmployerCity', 'ddlEmployerCountryCode', 'tbEmployerTel',
+        'tbJobTitle', 'tbEmployerDateFrom', 'tbEmployerDateTo',
+        'tbDescribeDuties', 'tbxSchoolName', 'tbxSchoolAddr1',
+        'tbxSchoolCity', 'ddlSchoolCountryCode', 'tbxCourseOfStudy',
+        'tbxSchoolFromDate', 'tbxSchoolToDate'
+      ],
+      'additionalWorkEducation': [
+        'dtlLANGUAGES', 'tbxLANGUAGE_NAME', 'dtlCountriesVisited',
+        'ddlCountriesVisited', 'dtlOrganization', 'tbxOrganizationName',
+        'rblCLAN_OR_TRIBE', 'tbxCLAN_OR_TRIBE_NAME',
+        'rblSPECIALIZED_SKILLS', 'rblMILITARY_SERVICE'
+      ],
+      'security': [
+        'rblDisease', 'rblDisorder', 'rblDrugUser', 'rblArrested',
+        'rblControlledSubstances', 'rblProstitution', 'rblMoneyLaundering',
+        'rblHumanTrafficking', 'rblAssistedSevereTrafficking',
+        'rblIllegalActivity', 'rblTerroristActivity', 'rblTerroristSupport',
+        'rblTerroristOrg', 'rblGenocide', 'rblTorture', 'rblExViolence',
+        'rblChildSoldier', 'rblReligiousFreedom', 'rblPopulationControls',
+        'rblTransplant'
+      ]
+    };
+
+    // If page is unknown, allow all fields (fallback)
+    if (!currentPage || currentPage === 'unknown') {
+      return true;
+    }
+
+    // Get patterns for current page
+    const patterns = pageFieldPatterns[currentPage];
+    if (!patterns) {
+      return true; // If no patterns defined for page, allow field
+    }
+
+    // Check if field matches any pattern for current page
+    return patterns.some(pattern => fieldId.includes(pattern));
   }
 
   // Detect which page we're on (improved detection)
@@ -141,10 +240,8 @@ class TwoPassFiller {
     const fields = [];
     const elements = document.querySelectorAll('input, select, textarea');
     
-    // DEBUG: Count dropdowns found
+    // Count dropdowns found (but don't log)
     const dropdowns = Array.from(elements).filter(e => e.tagName === 'SELECT');
-    console.log(`[FIELD SCAN] Found ${dropdowns.length} dropdown elements total`);
-    console.log(`[FIELD SCAN] Dropdown IDs:`, dropdowns.slice(0, 10).map(d => d.id));
     
     elements.forEach(element => {
       if (element.id && element.offsetParent !== null && !element.disabled) {
@@ -152,9 +249,12 @@ class TwoPassFiller {
           return;
         }
         
-        // Debug year fields
-        if (element.id.includes('PPT_ISSUED_Year') || element.id.includes('PPT_EXPIRE_Year')) {
-          console.log(`Year field found: ${element.id}, value: "${element.value}", type: ${element.type}`);
+        // Skip already filled text inputs and selects (but not radio/checkboxes)
+        if ((element.type === 'text' || element.type === 'select-one') && element.value && element.value.trim() !== '') {
+          // Mark as filled so we don't try again
+          this.filledFields.add(element.id);
+          console.log(`[SKIP] Field ${element.id} already has value: ${element.value}`);
+          return;
         }
         
         fields.push({
@@ -173,32 +273,22 @@ class TwoPassFiller {
     const fieldId = field.id;
     const element = field.element;
     
-    // Debug work/education page fields with persistent logging
-    if (fieldId.includes('Emp') || fieldId.includes('WORK') || fieldId.includes('Present') || fieldId.includes('Duties') || fieldId.includes('Occup') || fieldId.includes('dtlPrev')) {
-      this.log(`[WORK PAGE DEBUG] About to fill field`, { fieldId, elementType: element.type });
+    // Debug driver's license fields
+    if (fieldId.includes('DRIVER_LIC')) {
+      console.log(`[DRIVER LICENSE FIELD] Processing: ${fieldId}, type: ${field.type}`);
     }
     
-    // CRITICAL DEBUG: Log ALL dropdown attempts
-    if (field.type === 'select' || field.type === 'select-one') {
-      console.log(`[DROPDOWN ATTEMPT] Field: ${fieldId}, Type: ${field.type}`);
-    }
     
     if (this.filledFields.has(fieldId)) {
       return false;
     }
     
     const value = this.findMatchingValue(fieldId, data);
-    this.log(`Field value lookup`, { fieldId, value: value ? 'Found' : 'Not found', valueType: typeof value });
+    // Don't log every field lookup - creates too much noise
     
-    // DEBUG: Log the actual value for dropdowns
-    if (field.type === 'select' || field.type === 'select-one') {
-      console.log(`[DROPDOWN VALUE] Field: ${fieldId}, Value found: "${value}"`);
-    }
     
     if (value === null || value === undefined || value === 'N/A') {
-      if (field.type === 'select' || field.type === 'select-one') {
-        console.log(`[DROPDOWN SKIPPED] Field: ${fieldId} - Value is null/undefined/N/A`);
-      }
+      // Don't log - creates noise
       return false;
     }
     
@@ -213,31 +303,33 @@ class TwoPassFiller {
     }
     
     try {
-      this.log(`Starting to fill field`, { fieldId, fieldType: field.type, valueLength: value?.length });
+      // Don't log every field fill attempt
+      
       
       if (field.type === 'text' || field.type === 'textarea' || field.type === 'tel' || field.type === 'email') {
         // CRITICAL: Convert "N/A" to empty string to prevent crashes
         if (value === 'N/A' || value === 'n/a' || value === 'N/a') {
-          this.log(`Converting N/A to empty string for field`, { fieldId });
           value = '';  // Replace N/A with empty string
         }
         
-        // Log before any DOM manipulation with actual value content
-        this.log(`About to set text field value`, { 
-          fieldId, 
-          elementExists: !!element,
-          valuePreview: value ? String(value).substring(0, 50) : value,  // First 50 chars
-          valueLength: value ? String(value).length : 0,
-          hasSpecialChars: value ? /[^a-zA-Z0-9\s\-]/.test(String(value)) : false
-        });
+        // Don't log every field operation
         
-        // Special handling for fields that get cleared by the form's JavaScript
-        if (fieldId.includes('PETITION_NUM') || fieldId.includes('PPT_NUM') || 
-            fieldId.includes('Spouse') || fieldId.includes('SPOUSE') ||
+        // Detect if we're on the previous travel page
+        const currentPage = this.detectCurrentPage();
+        const isOnPreviousTravelPage = currentPage === 'previousTravel';
+        
+        // Special handling for TEXT fields that get cleared by the form's JavaScript
+        // Only apply to text fields on Previous Travel page, not radio/checkboxes
+        const needsAggressiveFilling = (isOnPreviousTravelPage && !fieldId.includes('rbl')) ||  // Text fields on previous travel page
+            fieldId.includes('PETITION_NUM') || 
+            fieldId.includes('PPT_NUM') || 
+            fieldId.includes('Spouse') || 
+            fieldId.includes('SPOUSE') ||
             fieldId.includes('PRIN_APP_PETITION_NUM') || 
             fieldId === 'ctl00_SiteContentPlaceHolder_FormView1_tbxPETITION_NUM' ||
-            fieldId.includes('tbxSocialMediaIdent')) {
-          console.log(`Special handling for field that may get cleared: ${fieldId} = ${value}`);
+            fieldId.includes('tbxSocialMediaIdent');
+            
+        if (needsAggressiveFilling) {
           
           // Method 1: Set value multiple times with delays
           element.value = value;
@@ -486,17 +578,22 @@ class TwoPassFiller {
           return false;
         }
       } else if (field.type === 'radio' || field.type === 'checkbox') {
-        // Now that we fixed the address issue, we can fill all fields normally!
+        // For radio buttons and checkboxes, value=true means we should check this element
+        // IMPORTANT: For "No" radio buttons, the field mapping returns true when "No" should be selected
         if (value === true || value === 'true' || value === 'yes' || value === 'on') {
+          console.log(`[RADIO/CHECKBOX] Checking ${fieldId} because value is truthy:`, value);
           element.checked = true;
           element.dispatchEvent(new Event('click', { bubbles: true }));
           element.dispatchEvent(new Event('change', { bubbles: true }));
+        } else if (value === false || value === 'false' || value === 'no' || value === 'off' || value === null || value === undefined) {
+          console.log(`[RADIO/CHECKBOX] NOT checking ${fieldId} because value is falsy:`, value);
+          // Don't check it - the field mapping already determines which radio button gets checked
+          element.checked = false;
         }
       }
       
-      console.log(`✓ Filled: ${fieldId}`);
+      // Field filled successfully
       this.filledFields.add(fieldId);
-      this.log(`Field marked as filled`, { fieldId });
       return true;
     } catch (error) {
       this.log(`ERROR filling field`, { fieldId, errorMessage: error.message, errorStack: error.stack });
@@ -548,11 +645,7 @@ class TwoPassFiller {
     
     // If we're NOT on the previous work page but trying to access previous work fields, skip immediately
     if (isPreviousWorkField && currentPage !== 'workEducationPrevious') {
-      this.log(`[SAFETY] Skipping field - not on previous work/education page`, { 
-        fieldId, 
-        currentPage,
-        isPreviousWorkField 
-      });
+      // Don't log - this is expected behavior and creates noise
       return null;
     }
     
@@ -792,18 +885,28 @@ class TwoPassFiller {
     
     // No longer need to skip dropdowns - we fixed the address issue!
     
-    // Log when creating field mappings
+    // Get the current page once at the beginning
     const currentPageCheck = this.detectCurrentPage();
-    this.log(`Creating field mappings`, { 
-      fieldId,
-      currentPage: currentPageCheck 
-    });
+    
+    // Don't filter fields - let them all be processed
+    // The form will only fill fields that exist on the current page anyway
+    
+    // Only log for important operations
+    // this.log(`Creating field mappings`, { 
+    //   fieldId,
+    //   currentPage: currentPageCheck 
+    // });
     
     // Direct field mappings
     const fieldMappings = {
       // Personal Information Page 1
       'ctl00_SiteContentPlaceHolder_FormView1_tbxAPP_SURNAME': data.personal?.surname,
-      'ctl00_SiteContentPlaceHolder_FormView1_tbxAPP_GIVEN_NAME': data.personal?.givenName,
+      'ctl00_SiteContentPlaceHolder_FormView1_tbxAPP_GIVEN_NAME': (() => {
+        // Combine given name and middle name if both exist
+        const given = data.personal?.givenName || '';
+        const middle = data.personal?.middleName || '';
+        return middle ? `${given} ${middle}`.trim() : given;
+      })(),
       'ctl00_SiteContentPlaceHolder_FormView1_tbxAPP_FULL_NAME_NATIVE': data.personal?.fullNameNative,
       // DOB fields are handled specially in findMatchingValue based on current page context
       
@@ -818,9 +921,45 @@ class TwoPassFiller {
       'ctl00_SiteContentPlaceHolder_FormView1_tbxAPP_POB_ST_PROVINCE': data.personal?.birthState,
       'ctl00_SiteContentPlaceHolder_FormView1_ddlAPP_POB_CNTRY': data.personal?.birthCountry,
       
-      // Other names (dynamic)
-      'ctl00_SiteContentPlaceHolder_FormView1_DListAlias_ctl00_tbxSURNAME': data.personal?.otherNames?.[0],
-      'ctl00_SiteContentPlaceHolder_FormView1_DListAlias_ctl00_tbxGIVEN_NAME': '', // Often just the name variation
+      // Other names (dynamic) - Split the name if it contains both given and surname
+      'ctl00_SiteContentPlaceHolder_FormView1_DListAlias_ctl00_tbxSURNAME': (() => {
+        const otherName = data.personal?.otherNames?.[0];
+        if (!otherName) return '';
+        // If the name contains a space, split it (e.g., "BRYAN LI" -> surname: "LI")
+        const parts = otherName.trim().split(/\s+/);
+        if (parts.length > 1) {
+          // Last part is surname
+          return parts[parts.length - 1];
+        }
+        // If no space, it's likely just a surname variation
+        return otherName;
+      })(),
+      'ctl00_SiteContentPlaceHolder_FormView1_DListAlias_ctl00_tbxGIVEN_NAME': (() => {
+        const otherName = data.personal?.otherNames?.[0];
+        if (!otherName) return '';
+        // If the name contains a space, split it (e.g., "BRYAN LI" -> given: "BRYAN")
+        const parts = otherName.trim().split(/\s+/);
+        if (parts.length > 1) {
+          // Everything except last part is given name
+          return parts.slice(0, -1).join(' ');
+        }
+        // If no space, leave given name empty
+        return '';
+      })(),
+      
+      // Additional other names (if more than one)
+      'ctl00_SiteContentPlaceHolder_FormView1_DListAlias_ctl01_tbxSURNAME': (() => {
+        const otherName = data.personal?.otherNames?.[1];
+        if (!otherName) return '';
+        const parts = otherName.trim().split(/\s+/);
+        return parts.length > 1 ? parts[parts.length - 1] : otherName;
+      })(),
+      'ctl00_SiteContentPlaceHolder_FormView1_DListAlias_ctl01_tbxGIVEN_NAME': (() => {
+        const otherName = data.personal?.otherNames?.[1];
+        if (!otherName) return '';
+        const parts = otherName.trim().split(/\s+/);
+        return parts.length > 1 ? parts.slice(0, -1).join(' ') : '';
+      })(),
       
       // Telecode fields (conditional - for Chinese names)
       'ctl00_SiteContentPlaceHolder_FormView1_tbxAPP_TelecodeSURNAME': data.personal?.telecodeSurname,
@@ -935,6 +1074,7 @@ class TwoPassFiller {
       
       // === PREVIOUS U.S. TRAVEL PAGE ===
       
+      
       // Previous US Visit Information (dynamic fields - ctl00 for first visit, ctl01 for second, etc.)
       'ctl00_SiteContentPlaceHolder_FormView1_dtlPREV_US_VISIT_ctl00_ddlPREV_US_VISIT_DTEDay': 
         this.parseDate(data.previousTravel?.visits?.[0]?.arrivalDate)?.day,
@@ -947,19 +1087,106 @@ class TwoPassFiller {
       'ctl00_SiteContentPlaceHolder_FormView1_dtlPREV_US_VISIT_ctl00_ddlPREV_US_VISIT_LOS_CD': 
         this.mapStayUnit(data.previousTravel?.visits?.[0]?.lengthOfStayUnit),
       
-      // Additional visits (up to 5)
-      'ctl00_SiteContentPlaceHolder_FormView1_dtlPREV_US_VISIT_ctl01_ddlPREV_US_VISIT_DTEDay': 
-        this.parseDate(data.previousTravel?.visits?.[1]?.arrivalDate)?.day,
-      'ctl00_SiteContentPlaceHolder_FormView1_dtlPREV_US_VISIT_ctl01_ddlPREV_US_VISIT_DTEMonth': 
-        this.getMonthNumber(data.previousTravel?.visits?.[1]?.arrivalDate),
-      'ctl00_SiteContentPlaceHolder_FormView1_dtlPREV_US_VISIT_ctl01_tbxPREV_US_VISIT_DTEYear': 
-        this.parseDate(data.previousTravel?.visits?.[1]?.arrivalDate)?.year,
+      // Additional visits - Only fill if the visit data exists
+      // Visit 2 (ctl01)
+      ...(() => {
+        const visit2 = data.previousTravel?.visits?.[1];
+        if (visit2) {
+          return {
+            'ctl00_SiteContentPlaceHolder_FormView1_dtlPREV_US_VISIT_ctl01_ddlPREV_US_VISIT_DTEDay': 
+              this.parseDate(visit2.arrivalDate)?.day,
+            'ctl00_SiteContentPlaceHolder_FormView1_dtlPREV_US_VISIT_ctl01_ddlPREV_US_VISIT_DTEMonth': 
+              this.getMonthNumber(visit2.arrivalDate),
+            'ctl00_SiteContentPlaceHolder_FormView1_dtlPREV_US_VISIT_ctl01_tbxPREV_US_VISIT_DTEYear': 
+              this.parseDate(visit2.arrivalDate)?.year,
+            'ctl00_SiteContentPlaceHolder_FormView1_dtlPREV_US_VISIT_ctl01_tbxPREV_US_VISIT_LOS': 
+              visit2.lengthOfStayNumber,
+            'ctl00_SiteContentPlaceHolder_FormView1_dtlPREV_US_VISIT_ctl01_ddlPREV_US_VISIT_LOS_CD': 
+              this.mapStayUnit(visit2.lengthOfStayUnit)
+          };
+        }
+        return {};
+      })(),
+      
+      // Visit 3 (ctl02)
+      ...(() => {
+        const visit3 = data.previousTravel?.visits?.[2];
+        if (visit3) {
+          return {
+            'ctl00_SiteContentPlaceHolder_FormView1_dtlPREV_US_VISIT_ctl02_ddlPREV_US_VISIT_DTEDay': 
+              this.parseDate(visit3.arrivalDate)?.day,
+            'ctl00_SiteContentPlaceHolder_FormView1_dtlPREV_US_VISIT_ctl02_ddlPREV_US_VISIT_DTEMonth': 
+              this.getMonthNumber(visit3.arrivalDate),
+            'ctl00_SiteContentPlaceHolder_FormView1_dtlPREV_US_VISIT_ctl02_tbxPREV_US_VISIT_DTEYear': 
+              this.parseDate(visit3.arrivalDate)?.year,
+            'ctl00_SiteContentPlaceHolder_FormView1_dtlPREV_US_VISIT_ctl02_tbxPREV_US_VISIT_LOS': 
+              visit3.lengthOfStayNumber,
+            'ctl00_SiteContentPlaceHolder_FormView1_dtlPREV_US_VISIT_ctl02_ddlPREV_US_VISIT_LOS_CD': 
+              this.mapStayUnit(visit3.lengthOfStayUnit)
+          };
+        }
+        return {};
+      })(),
+      
+      // Visit 4 (ctl03)
+      ...(() => {
+        const visit4 = data.previousTravel?.visits?.[3];
+        if (visit4) {
+          return {
+            'ctl00_SiteContentPlaceHolder_FormView1_dtlPREV_US_VISIT_ctl03_ddlPREV_US_VISIT_DTEDay': 
+              this.parseDate(visit4.arrivalDate)?.day,
+            'ctl00_SiteContentPlaceHolder_FormView1_dtlPREV_US_VISIT_ctl03_ddlPREV_US_VISIT_DTEMonth': 
+              this.getMonthNumber(visit4.arrivalDate),
+            'ctl00_SiteContentPlaceHolder_FormView1_dtlPREV_US_VISIT_ctl03_tbxPREV_US_VISIT_DTEYear': 
+              this.parseDate(visit4.arrivalDate)?.year,
+            'ctl00_SiteContentPlaceHolder_FormView1_dtlPREV_US_VISIT_ctl03_tbxPREV_US_VISIT_LOS': 
+              visit4.lengthOfStayNumber,
+            'ctl00_SiteContentPlaceHolder_FormView1_dtlPREV_US_VISIT_ctl03_ddlPREV_US_VISIT_LOS_CD': 
+              this.mapStayUnit(visit4.lengthOfStayUnit)
+          };
+        }
+        return {};
+      })(),
+      
+      // Visit 5 (ctl04)
+      ...(() => {
+        const visit5 = data.previousTravel?.visits?.[4];
+        if (visit5) {
+          return {
+            'ctl00_SiteContentPlaceHolder_FormView1_dtlPREV_US_VISIT_ctl04_ddlPREV_US_VISIT_DTEDay': 
+              this.parseDate(visit5.arrivalDate)?.day,
+            'ctl00_SiteContentPlaceHolder_FormView1_dtlPREV_US_VISIT_ctl04_ddlPREV_US_VISIT_DTEMonth': 
+              this.getMonthNumber(visit5.arrivalDate),
+            'ctl00_SiteContentPlaceHolder_FormView1_dtlPREV_US_VISIT_ctl04_tbxPREV_US_VISIT_DTEYear': 
+              this.parseDate(visit5.arrivalDate)?.year,
+            'ctl00_SiteContentPlaceHolder_FormView1_dtlPREV_US_VISIT_ctl04_tbxPREV_US_VISIT_LOS': 
+              visit5.lengthOfStayNumber,
+            'ctl00_SiteContentPlaceHolder_FormView1_dtlPREV_US_VISIT_ctl04_ddlPREV_US_VISIT_LOS_CD': 
+              this.mapStayUnit(visit5.lengthOfStayUnit)
+          };
+        }
+        return {};
+      })(),
       
       // US Driver's License
-      'ctl00_SiteContentPlaceHolder_FormView1_dtlUS_DRIVER_LICENSE_ctl00_tbxUS_DRIVER_LICENSE': 
-        data.previousTravel?.driverLicense?.number,
-      'ctl00_SiteContentPlaceHolder_FormView1_dtlUS_DRIVER_LICENSE_ctl00_ddlUS_DRIVER_LICENSE_STATE': 
-        data.previousTravel?.driverLicense?.state,
+      'ctl00_SiteContentPlaceHolder_FormView1_dtlUS_DRIVER_LICENSE_ctl00_tbxUS_DRIVER_LICENSE': (() => {
+        // Only fill if has license is true
+        if (data.previousTravel?.driverLicense?.hasLicense !== true) {
+          return null; // Don't fill if they don't have a license
+        }
+        const licenseNumber = data.previousTravel?.driverLicense?.number;
+        console.log('[DRIVER LICENSE] Number field mapping:', licenseNumber);
+        return licenseNumber;
+      })(),
+      'ctl00_SiteContentPlaceHolder_FormView1_dtlUS_DRIVER_LICENSE_ctl00_ddlUS_DRIVER_LICENSE_STATE': (() => {
+        // Only fill if has license is true
+        if (data.previousTravel?.driverLicense?.hasLicense !== true) {
+          return null; // Don't fill if they don't have a license
+        }
+        const state = data.previousTravel?.driverLicense?.state;
+        console.log('[DRIVER LICENSE] State field mapping:', state);
+        return state;
+      })(),
       
       // Previous Visa Information
       // Only fill date if hasVisa is true AND date is not N/A
@@ -1127,10 +1354,17 @@ class TwoPassFiller {
         data.previousTravel?.immigrantPetition === false || !data.previousTravel?.immigrantPetition,
       
       // US Driver's License
-      'ctl00_SiteContentPlaceHolder_FormView1_rblPREV_US_DRIVER_LIC_IND_0': 
-        data.previousTravel?.driverLicense?.hasLicense === true,
-      'ctl00_SiteContentPlaceHolder_FormView1_rblPREV_US_DRIVER_LIC_IND_1': 
-        data.previousTravel?.driverLicense?.hasLicense === false || !data.previousTravel?.driverLicense?.hasLicense,
+      'ctl00_SiteContentPlaceHolder_FormView1_rblPREV_US_DRIVER_LIC_IND_0': (() => {
+        const hasLicense = data.previousTravel?.driverLicense?.hasLicense;
+        console.log('[DRIVER LICENSE RADIO] YES option - hasLicense:', hasLicense, 'Will check:', hasLicense === true);
+        return hasLicense === true;
+      })(),
+      'ctl00_SiteContentPlaceHolder_FormView1_rblPREV_US_DRIVER_LIC_IND_1': (() => {
+        const hasLicense = data.previousTravel?.driverLicense?.hasLicense;
+        const shouldCheckNo = hasLicense === false || hasLicense === undefined || hasLicense === null || hasLicense === 'false' || hasLicense === 'N';
+        console.log('[DRIVER LICENSE RADIO] NO option - hasLicense:', hasLicense, 'Will check:', shouldCheckNo);
+        return shouldCheckNo;
+      })(),
       
       // Previous visa questions
       'ctl00_SiteContentPlaceHolder_FormView1_rblPREV_VISA_SAME_TYPE_IND_0': 
@@ -1234,7 +1468,11 @@ class TwoPassFiller {
       'ctl00_SiteContentPlaceHolder_FormView1_dtlAddEmail_ctl03_tbxAddEmailInfo': data.contact?.otherEmails?.[3] || data.contact?.additionalEmails?.[3],
       'ctl00_SiteContentPlaceHolder_FormView1_dtlAddEmail_ctl04_tbxAddEmailInfo': data.contact?.otherEmails?.[4] || data.contact?.additionalEmails?.[4],
       
-      // Social Media Question - Default to NO
+      // NOTE: There is NO Yes/No question for "Do you have social media?"
+      // The form goes directly to the dropdown and text field
+      
+      // "Do you wish to provide information about your presence on any other websites..." Question
+      // This is the rblAddSocial field - should default to NO
       'ctl00_SiteContentPlaceHolder_FormView1_rblAddSocial_0': false,  // Yes radio button
       'ctl00_SiteContentPlaceHolder_FormView1_rblAddSocial_1': true,   // No radio button - default to NO
       
@@ -1243,14 +1481,28 @@ class TwoPassFiller {
       'ctl00_SiteContentPlaceHolder_FormView1_rblOtherWebsites_1': true,   // No radio button - default to NO
       
       // Social Media - Using actual field IDs from DS-160
-      'ctl00_SiteContentPlaceHolder_FormView1_dtlSocial_ctl00_ddlSocialMedia': 
-        this.mapSocialMediaPlatform(data.contact?.socialMediaAccounts?.[0]?.platform || data.contact?.socialMedia?.[0]?.platform),
-      'ctl00_SiteContentPlaceHolder_FormView1_dtlSocial_ctl00_tbxSocialMediaIdent': 
-        data.contact?.socialMediaAccounts?.[0]?.handle || data.contact?.socialMedia?.[0]?.handle || data.contact?.socialMedia?.[0]?.identifier,
-      'ctl00_SiteContentPlaceHolder_FormView1_dtlSocial_ctl01_ddlSocialMedia': 
-        this.mapSocialMediaPlatform(data.contact?.socialMediaAccounts?.[1]?.platform || data.contact?.socialMedia?.[1]?.platform),
-      'ctl00_SiteContentPlaceHolder_FormView1_dtlSocial_ctl01_tbxSocialMediaIdent': 
-        data.contact?.socialMediaAccounts?.[1]?.handle || data.contact?.socialMedia?.[1]?.handle,
+      'ctl00_SiteContentPlaceHolder_FormView1_dtlSocial_ctl00_ddlSocialMedia': (() => {
+        const platform = data.contact?.socialMediaAccounts?.[0]?.platform || data.contact?.socialMedia?.[0]?.platform;
+        const mapped = this.mapSocialMediaPlatform(platform);
+        console.log('[SOCIAL MEDIA] Platform 0:', platform, '→ mapped to:', mapped);
+        return mapped;
+      })(),
+      'ctl00_SiteContentPlaceHolder_FormView1_dtlSocial_ctl00_tbxSocialMediaIdent': (() => {
+        const handle = data.contact?.socialMediaAccounts?.[0]?.handle || data.contact?.socialMedia?.[0]?.handle || data.contact?.socialMedia?.[0]?.identifier;
+        console.log('[SOCIAL MEDIA] Handle 0:', handle);
+        return handle;
+      })(),
+      'ctl00_SiteContentPlaceHolder_FormView1_dtlSocial_ctl01_ddlSocialMedia': (() => {
+        const platform = data.contact?.socialMediaAccounts?.[1]?.platform || data.contact?.socialMedia?.[1]?.platform;
+        const mapped = this.mapSocialMediaPlatform(platform);
+        console.log('[SOCIAL MEDIA] Platform 1:', platform, '→ mapped to:', mapped);
+        return mapped;
+      })(),
+      'ctl00_SiteContentPlaceHolder_FormView1_dtlSocial_ctl01_tbxSocialMediaIdent': (() => {
+        const handle = data.contact?.socialMediaAccounts?.[1]?.handle || data.contact?.socialMedia?.[1]?.handle;
+        console.log('[SOCIAL MEDIA] Handle 1:', handle);
+        return handle;
+      })(),
       'ctl00_SiteContentPlaceHolder_FormView1_dtlSocial_ctl02_ddlSocialMedia': 
         this.mapSocialMediaPlatform(data.contact?.socialMediaAccounts?.[2]?.platform || data.contact?.socialMedia?.[2]?.platform),
       'ctl00_SiteContentPlaceHolder_FormView1_dtlSocial_ctl02_tbxSocialMediaIdent': 
@@ -1506,10 +1758,17 @@ class TwoPassFiller {
         !data.usPointOfContact?.contactName && !data.usPointOfContact?.contactSurname,
       
       // Organization
-      'ctl00_SiteContentPlaceHolder_FormView1_tbxUS_POC_ORGANIZATION': 
-        data.usPointOfContact?.contactOrganization || data.usPointOfContact?.organization,
-      'ctl00_SiteContentPlaceHolder_FormView1_cbxUS_POC_ORG_NA_IND': 
-        !data.usPointOfContact?.contactOrganization && !data.usPointOfContact?.organization,
+      'ctl00_SiteContentPlaceHolder_FormView1_tbxUS_POC_ORGANIZATION': (() => {
+        const org = data.usPointOfContact?.contactOrganization || data.usPointOfContact?.organization;
+        // Don't fill the text field if it's N/A - the checkbox will be checked instead
+        return (org && org !== 'N/A') ? org : null;
+      })(),
+      'ctl00_SiteContentPlaceHolder_FormView1_cbxUS_POC_ORG_NA_IND': (() => {
+        const org = data.usPointOfContact?.contactOrganization || data.usPointOfContact?.organization;
+        // Check the "Do Not Know" checkbox if organization is N/A or missing
+        console.log('[US CONTACT] Organization value:', org, 'Will check Do Not Know:', !org || org === 'N/A');
+        return !org || org === 'N/A';
+      })(),
       
       // Relationship
       'ctl00_SiteContentPlaceHolder_FormView1_ddlUS_POC_REL_TO_APP': 
@@ -2031,6 +2290,10 @@ class TwoPassFiller {
         data.workEducation?.languages?.[1],
       'ctl00_SiteContentPlaceHolder_FormView1_dtlLANGUAGES_ctl02_tbxLANGUAGE_NAME': 
         data.workEducation?.languages?.[2],
+      'ctl00_SiteContentPlaceHolder_FormView1_dtlLANGUAGES_ctl03_tbxLANGUAGE_NAME': 
+        data.workEducation?.languages?.[3],
+      'ctl00_SiteContentPlaceHolder_FormView1_dtlLANGUAGES_ctl04_tbxLANGUAGE_NAME': 
+        data.workEducation?.languages?.[4],
       
       // Countries Visited in Last 5 Years
       'ctl00_SiteContentPlaceHolder_FormView1_rblCOUNTRIES_VISITED_IND_0': 
@@ -2043,6 +2306,10 @@ class TwoPassFiller {
         this.mapCountry(data.workEducation?.countriesVisited5Years?.[1]),
       'ctl00_SiteContentPlaceHolder_FormView1_dtlCountriesVisited_ctl02_ddlCOUNTRIES_VISITED': 
         this.mapCountry(data.workEducation?.countriesVisited5Years?.[2]),
+      'ctl00_SiteContentPlaceHolder_FormView1_dtlCountriesVisited_ctl03_ddlCOUNTRIES_VISITED': 
+        this.mapCountry(data.workEducation?.countriesVisited5Years?.[3]),
+      'ctl00_SiteContentPlaceHolder_FormView1_dtlCountriesVisited_ctl04_ddlCOUNTRIES_VISITED': 
+        this.mapCountry(data.workEducation?.countriesVisited5Years?.[4]),
       
       // Clan/Tribe Membership
       'ctl00_SiteContentPlaceHolder_FormView1_rblCLAN_TRIBE_IND_0': 
@@ -3162,7 +3429,7 @@ class TwoPassFiller {
       if (addressUpper.includes('SAME AS MAILING')) {
         return 'M'; // Same as Mailing Address
       }
-      if (addressUpper.includes('SAME AS U.S. CONTACT')) {
+      if (addressUpper.includes('SAME AS U.S. CONTACT') || addressUpper.includes('SAME AS US CONTACT')) {
         return 'U'; // Same as U.S. Contact Address
       }
       if (addressUpper.includes('DO NOT KNOW') || addressUpper.includes("DON'T KNOW")) {
@@ -4372,13 +4639,11 @@ class DS160Extension {
         // Show notification if on additional work/education page (languages and countries)
         if (currentPage === 'additionalWorkEducation' && this.data) {
           const languageCount = this.checkForMultipleLanguages(this.data);
-          if (languageCount > 1) {
-            this.showMultipleLanguagesNotification(languageCount);
-          }
-          
           const countriesCount = this.checkForMultipleCountriesVisited(this.data);
-          if (countriesCount > 1) {
-            this.showMultipleCountriesVisitedNotification(countriesCount);
+          
+          // Show combined notification if either languages or countries are present
+          if (languageCount > 0 || countriesCount > 0) {
+            this.showLanguagesAndCountriesNotification(languageCount, countriesCount);
           }
         }
         
@@ -4478,11 +4743,13 @@ class DS160Extension {
       this.filler.showMultipleEntriesNotification(employerCount, educationCount);
     }
     
-    // Check if we're on the additional work/education page and show language notification
+    // Check if we're on the additional work/education page and show combined notification
     if (currentPage === 'additionalWorkEducation' && this.data) {
       const languageCount = this.checkForMultipleLanguages(this.data);
-      if (languageCount > 1) {
-        this.showMultipleLanguagesNotification(languageCount);
+      const countriesCount = this.checkForMultipleCountriesVisited(this.data);
+      
+      if (languageCount > 0 || countriesCount > 0) {
+        this.showLanguagesAndCountriesNotification(languageCount, countriesCount);
       }
     }
     
@@ -4546,6 +4813,14 @@ class DS160Extension {
     // Get current page
     const currentPage = this.filler.detectCurrentPage();
     
+    // Check for multiple other names - only on personal page
+    if (currentPage === 'personal1') {
+      const otherNamesCount = this.checkForMultipleOtherNames(this.data);
+      if (otherNamesCount > 2) {
+        this.showMultipleOtherNamesNotification(otherNamesCount);
+      }
+    }
+    
     // Check for multiple emails - only on contact pages
     if (currentPage === 'contact' || currentPage === 'address') {
       const emailCount = this.checkForMultipleEmails(this.data);
@@ -4555,8 +4830,21 @@ class DS160Extension {
     }
     
     // Check for multiple social media accounts - only on contact page
-    if (currentPage === 'contact') {
+    if (currentPage === 'contact' || currentPage === 'addressPhone') {
+      console.log('[SOCIAL MEDIA CHECK] Current page:', currentPage);
+      console.log('[SOCIAL MEDIA CHECK] Data:', this.data?.contact);
+      
       const socialCount = this.checkForMultipleSocialMedia(this.data);
+      console.log('[SOCIAL MEDIA CHECK] Found', socialCount, 'social media accounts');
+      
+      // Show social media helper if user has any accounts - EXACTLY like US travel notification
+      if (socialCount > 0) {
+        const socialAccounts = this.data?.contact?.socialMediaAccounts || [];
+        console.log('[SOCIAL MEDIA] Calling showSocialMediaHelper with accounts:', socialAccounts);
+        this.showSocialMediaHelper(socialAccounts);
+      }
+      
+      // Also show the multiple accounts warning if more than 1
       if (socialCount > 1) {
         this.showMultipleSocialMediaNotification(socialCount);
       }
@@ -4570,13 +4858,10 @@ class DS160Extension {
     // Check for multiple languages and countries - only on additional work/education page
     if (currentPage === 'additionalWorkEducation') {
       const languageCount = this.checkForMultipleLanguages(this.data);
-      if (languageCount > 1) {
-        this.showMultipleLanguagesNotification(languageCount);
-      }
-      
       const countriesCount = this.checkForMultipleCountriesVisited(this.data);
-      if (countriesCount > 1) {
-        this.showMultipleCountriesVisitedNotification(countriesCount);
+      
+      if (languageCount > 0 || countriesCount > 0) {
+        this.showLanguagesAndCountriesNotification(languageCount, countriesCount);
       }
     }
     
@@ -4585,6 +4870,20 @@ class DS160Extension {
       const employerCount = this.data.workEducation?.previousEmployers?.length || 0;
       const educationCount = this.data.workEducation?.previousEducation?.length || 0;
       this.filler.showMultipleEntriesNotification(employerCount, educationCount);
+    }
+    
+    // Check for multiple US travel entries and driver's licenses - only on previous travel page
+    if (currentPage === 'previousTravel') {
+      const travelCount = this.checkForMultipleUSTravel(this.data);
+      if (travelCount > 1) {
+        const visits = this.data?.previousTravel?.visits || [];
+        this.showMultipleUSTravelNotification(travelCount, visits);
+      }
+      
+      const licenseCount = this.checkForMultipleDriversLicenses(this.data);
+      if (licenseCount > 1) {
+        this.showMultipleDriversLicensesNotification(licenseCount);
+      }
     }
     
     console.log('Starting two-pass fill process...');
@@ -4615,6 +4914,153 @@ class DS160Extension {
     return 0;
   }
   
+  // Show social media helper - follows exact same pattern as showMultipleUSTravelNotification
+  showSocialMediaHelper(socialAccounts) {
+    // Remove any existing notification
+    const existingNotif = document.getElementById('ds160-social-media-guide');
+    if (existingNotif) existingNotif.remove();
+    
+    if (!socialAccounts || socialAccounts.length === 0) return;
+    
+    console.log('[SOCIAL MEDIA] Creating helper notification for', socialAccounts.length, 'accounts');
+    
+    // Create the notification HTML
+    const accountsHTML = socialAccounts.map((account, index) => `
+      <div style="
+        background: #f8f9fa;
+        padding: 12px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+      ">
+        <div style="font-weight: 600; color: #495057; margin-bottom: 8px;">
+          Account ${index + 1}
+        </div>
+        <div class="copyable-field" data-value="${this.filler.mapSocialMediaPlatform(account.platform) || account.platform}" style="
+          padding: 8px;
+          background: white;
+          border: 1px solid #dee2e6;
+          border-radius: 4px;
+          margin-bottom: 6px;
+          cursor: pointer;
+          transition: all 0.2s;
+        ">
+          <span style="font-weight: 500;">Platform:</span> ${account.platform} → ${this.filler.mapSocialMediaPlatform(account.platform) || 'Not mapped'}
+          <span style="float: right; font-size: 12px; color: #6c757d;">📋</span>
+        </div>
+        <div class="copyable-field" data-value="${account.handle || ''}" style="
+          padding: 8px;
+          background: white;
+          border: 1px solid #dee2e6;
+          border-radius: 4px;
+          cursor: pointer;
+          transition: all 0.2s;
+        ">
+          <span style="font-weight: 500;">Handle:</span> ${account.handle || 'Not provided'}
+          <span style="float: right; font-size: 12px; color: #6c757d;">📋</span>
+        </div>
+      </div>
+    `).join('');
+    
+    const notificationHTML = `
+      <div id="ds160-social-media-guide" style="
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        max-width: 400px;
+        z-index: 10001;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      ">
+        <button id="close-social-guide" style="
+          position: absolute;
+          top: 10px;
+          right: 10px;
+          background: rgba(255,255,255,0.2);
+          border: none;
+          color: white;
+          width: 24px;
+          height: 24px;
+          border-radius: 12px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 16px;
+        ">×</button>
+        
+        <h3 style="margin: 0 0 10px 0; font-size: 18px; font-weight: 600;">
+          📱 Social Media Helper
+        </h3>
+        <p style="margin: 0 0 15px 0; font-size: 14px; opacity: 0.95;">
+          Please manually fill the social media fields. Click to copy the values below, then select from dropdown and paste:
+        </p>
+        
+        <div style="background: rgba(255,255,255,0.95); border-radius: 8px; padding: 15px; color: #212529;">
+          ${accountsHTML}
+        </div>
+        
+        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.3);">
+          <p style="margin: 0; font-size: 12px; opacity: 0.9;">
+            💡 <strong>Tip:</strong> Click any field above to copy its value, then paste into the form.
+          </p>
+        </div>
+      </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', notificationHTML);
+    
+    // Add close button handler
+    document.getElementById('close-social-guide').addEventListener('click', () => {
+      document.getElementById('ds160-social-media-guide').remove();
+    });
+    
+    // Add click-to-copy functionality
+    document.querySelectorAll('#ds160-social-media-guide .copyable-field').forEach(field => {
+      field.addEventListener('click', async (e) => {
+        const value = field.dataset.value;
+        if (!value) return;
+        
+        try {
+          await navigator.clipboard.writeText(value);
+          
+          // Show success feedback
+          const originalBg = field.style.background;
+          field.style.background = '#d4edda';
+          field.style.border = '1px solid #28a745';
+          
+          const copyIcon = field.querySelector('span[style*="float: right"]');
+          const originalIcon = copyIcon.textContent;
+          copyIcon.textContent = '✓';
+          copyIcon.style.color = '#28a745';
+          
+          setTimeout(() => {
+            field.style.background = originalBg;
+            field.style.border = '1px solid #dee2e6';
+            copyIcon.textContent = originalIcon;
+            copyIcon.style.color = '#6c757d';
+          }, 1500);
+        } catch (err) {
+          console.error('Failed to copy:', err);
+        }
+      });
+      
+      // Add hover effect
+      field.addEventListener('mouseenter', () => {
+        field.style.background = '#e9ecef';
+        field.style.borderColor = '#adb5bd';
+      });
+      
+      field.addEventListener('mouseleave', () => {
+        field.style.background = 'white';
+        field.style.borderColor = '#dee2e6';
+      });
+    });
+  }
+  
   checkForMultipleLanguages(data) {
     // Return the count of languages
     if (data && data.workEducation?.languages) {
@@ -4627,6 +5073,34 @@ class DS160Extension {
     // Return the count of countries visited in last 5 years
     if (data && data.workEducation?.countriesVisited5Years) {
       return data.workEducation.countriesVisited5Years.length;
+    }
+    return 0;
+  }
+  
+  checkForMultipleOtherNames(data) {
+    // Return the count of other names used
+    if (data && data.personal?.otherNames) {
+      return data.personal.otherNames.length;
+    }
+    return 0;
+  }
+  
+  checkForMultipleUSTravel(data) {
+    // Return the count of previous US travel entries
+    if (data && data.previousTravel?.visits) {
+      return data.previousTravel.visits.length;
+    }
+    return 0;
+  }
+  
+  checkForMultipleDriversLicenses(data) {
+    // Return the count of driver's licenses
+    if (data && data.previousTravel?.driversLicenses) {
+      return data.previousTravel.driversLicenses.length;
+    }
+    // Check if single license exists
+    if (data && data.previousTravel?.driverLicense?.number) {
+      return 1;
     }
     return 0;
   }
@@ -4649,7 +5123,7 @@ class DS160Extension {
   }
   
   showMultipleEmailsNotification(emailCount) {
-    this.showUnifiedNotification({
+    this.filler.showUnifiedNotification({
       title: '📧 Multiple Emails Detected',
       sections: [{
         icon: '✉️',
@@ -4660,7 +5134,7 @@ class DS160Extension {
   }
   
   showMultipleSocialMediaNotification(socialCount) {
-    this.showUnifiedNotification({
+    this.filler.showUnifiedNotification({
       title: '📱 Multiple Social Media Detected',
       sections: [{
         icon: '💬',
@@ -4670,24 +5144,81 @@ class DS160Extension {
     });
   }
   
+  showLanguagesAndCountriesNotification(languageCount, countriesCount) {
+    const sections = [];
+    
+    // Add languages section if present
+    if (languageCount > 0) {
+      const languages = this.data?.workEducation?.languages || [];
+      let languageList = languages.slice(0, Math.min(5, languages.length))
+        .map((lang, index) => `${index + 1}. ${lang}`)
+        .join('\n');
+      
+      sections.push({
+        icon: '🗣️',
+        title: `${languageCount} Language${languageCount !== 1 ? 's' : ''} Spoken`,
+        description: `The extension will fill up to 5 languages. ${languageCount > 5 ? 'Click "Add Another" for more.' : ''}\n\nLanguages to be filled:\n${languageList}`,
+        fieldInfo: 'Field ID: dtlLANGUAGES_ctl[N]_tbxLANGUAGE_NAME'
+      });
+    }
+    
+    // Add countries section if present
+    if (countriesCount > 0) {
+      const countries = this.data?.workEducation?.countriesVisited5Years || [];
+      let countryList = countries.slice(0, Math.min(5, countries.length))
+        .map((country, index) => `${index + 1}. ${country}`)
+        .join('\n');
+      
+      sections.push({
+        icon: '✈️',
+        title: `${countriesCount} ${countriesCount !== 1 ? 'Countries' : 'Country'} Visited in Last 5 Years`,
+        description: `The extension will fill up to 5 countries. ${countriesCount > 5 ? 'Click "Add Another" for more.' : ''}\n\nCountries to be filled:\n${countryList}`,
+        fieldInfo: 'Field ID: dtlCountriesVisited_ctl[N]_ddlCOUNTRIES_VISITED'
+      });
+    }
+    
+    // Show combined notification
+    this.filler.showUnifiedNotification({
+      title: '📋 Additional Work/Education Information',
+      sections: sections
+    });
+  }
+  
   showMultipleLanguagesNotification(languageCount) {
+    // Get the list of languages from data
+    const languages = this.data?.workEducation?.languages || [];
+    
+    // Build the language list for display
+    let languageList = languages.slice(0, Math.min(5, languages.length))
+      .map((lang, index) => `${index + 1}. ${lang}`)
+      .join('\n');
+    
     this.filler.showUnifiedNotification({
       title: '🌐 Multiple Languages Detected',
       sections: [{
         icon: '🗣️',
         title: `${languageCount} Languages Spoken`,
-        description: 'The extension will fill the first language. Click "Add Another" button on the Additional Work/Education/Training Information page to add more languages.'
+        description: `The extension will fill up to 5 languages. ${languageCount > 5 ? 'If you have more than 5 languages, click "Add Another" button on the Additional Work/Education/Training Information page to add more.' : ''}\n\nLanguages to be filled:\n${languageList}`,
+        fieldInfo: 'Text field ID: ctl00_SiteContentPlaceHolder_FormView1_dtlLANGUAGES_ctl[N]_tbxLANGUAGE_NAME'
       }]
     });
   }
   
   showMultipleCountriesVisitedNotification(countriesCount) {
+    // Get the list of countries from data
+    const countries = this.data?.workEducation?.countriesVisited5Years || [];
+    
+    // Build the country list for display
+    let countryList = countries.slice(0, Math.min(5, countries.length))
+      .map((country, index) => `${index + 1}. ${country}`)
+      .join('\n');
+    
     this.filler.showUnifiedNotification({
       title: '🌍 Multiple Countries Visited',
       sections: [{
         icon: '✈️',
         title: `${countriesCount} Countries Visited in Last 5 Years`,
-        description: 'The extension will fill the first 3 countries. Click "Add Another" button on the Additional Work/Education/Training Information page to add more countries.',
+        description: `The extension will fill up to 5 countries. ${countriesCount > 5 ? 'If you have more than 5 countries, click "Add Another" button on the Additional Work/Education/Training Information page to add more.' : ''}\n\nCountries to be filled:\n${countryList}`,
         fieldInfo: 'Dropdown field ID: ctl00_SiteContentPlaceHolder_FormView1_dtlCountriesVisited_ctl[N]_ddlCOUNTRIES_VISITED'
       }]
     });
@@ -4703,6 +5234,78 @@ class DS160Extension {
         fieldInfo: 'Field: rblOtherWebsites - Only Facebook is listed, no additional platforms needed'
       }],
       type: 'warning'
+    });
+  }
+  
+  showMultipleOtherNamesNotification(namesCount) {
+    this.filler.showUnifiedNotification({
+      title: '👤 Multiple Other Names Detected',
+      sections: [{
+        icon: '📝',
+        title: `${namesCount} Other Names Found`,
+        description: 'The extension will fill the first 2 names. Click "Add Another" button on the Personal Information page to add additional names.',
+        fieldInfo: 'Fields: DListAlias_ctl[N]_tbxSURNAME and tbxGIVEN_NAME'
+      }]
+    });
+  }
+  
+  showMultipleUSTravelNotification(travelCount, visits) {
+    // Check which visit fields are actually present on the page
+    const visit1Exists = !!document.getElementById('ctl00_SiteContentPlaceHolder_FormView1_dtlPREV_US_VISIT_ctl00_ddlPREV_US_VISIT_DTEDay');
+    const visit2Exists = !!document.getElementById('ctl00_SiteContentPlaceHolder_FormView1_dtlPREV_US_VISIT_ctl01_ddlPREV_US_VISIT_DTEDay');
+    const visit3Exists = !!document.getElementById('ctl00_SiteContentPlaceHolder_FormView1_dtlPREV_US_VISIT_ctl02_ddlPREV_US_VISIT_DTEDay');
+    const visit4Exists = !!document.getElementById('ctl00_SiteContentPlaceHolder_FormView1_dtlPREV_US_VISIT_ctl03_ddlPREV_US_VISIT_DTEDay');
+    const visit5Exists = !!document.getElementById('ctl00_SiteContentPlaceHolder_FormView1_dtlPREV_US_VISIT_ctl04_ddlPREV_US_VISIT_DTEDay');
+    
+    let fieldsStatus = 'Fields available: ';
+    let availableCount = 0;
+    if (visit1Exists) { fieldsStatus += 'Visit 1 ✓ '; availableCount++; }
+    if (visit2Exists) { fieldsStatus += 'Visit 2 ✓ '; availableCount++; }
+    if (visit3Exists) { fieldsStatus += 'Visit 3 ✓ '; availableCount++; }
+    if (visit4Exists) { fieldsStatus += 'Visit 4 ✓ '; availableCount++; }
+    if (visit5Exists) { fieldsStatus += 'Visit 5 ✓ '; availableCount++; }
+    
+    // Create formatted list of visits
+    let visitsList = '<div style="margin-top: 10px; font-family: monospace; font-size: 13px;">';
+    visitsList += '<strong>Your US Visit History:</strong><br>';
+    visitsList += '<table style="width: 100%; margin-top: 5px; border-collapse: collapse;">';
+    visitsList += '<tr style="border-bottom: 1px solid #ddd;"><th style="text-align: left; padding: 4px;">Visit</th><th style="text-align: left; padding: 4px;">Arrival Date</th><th style="text-align: left; padding: 4px;">Length of Stay</th></tr>';
+    
+    if (visits && visits.length > 0) {
+      visits.slice(0, 5).forEach((visit, index) => {
+        visitsList += `<tr style="border-bottom: 1px solid #eee;">`;
+        visitsList += `<td style="padding: 4px;">#${index + 1}</td>`;
+        visitsList += `<td style="padding: 4px;">${visit.arrivalDate || 'N/A'}</td>`;
+        visitsList += `<td style="padding: 4px;">${visit.lengthOfStayNumber || 'N/A'} ${visit.lengthOfStayUnit || ''}</td>`;
+        visitsList += `</tr>`;
+      });
+    }
+    visitsList += '</table></div>';
+    
+    if (availableCount < travelCount && availableCount < 5) {
+      fieldsStatus += `\n⚠️ Click "Add Another" ${Math.min(travelCount, 5) - availableCount} more times to add all visit fields`;
+    }
+    
+    this.filler.showUnifiedNotification({
+      title: '✈️ Multiple US Travel Entries Detected',
+      sections: [{
+        icon: '📅',
+        title: `${travelCount} Previous US Visits Found`,
+        description: `${fieldsStatus}${visitsList}`,
+        fieldInfo: 'You may need to click "Add Another" button multiple times to create fields for all visits, then click Auto-Fill again.'
+      }]
+    });
+  }
+  
+  showMultipleDriversLicensesNotification(licenseCount) {
+    this.filler.showUnifiedNotification({
+      title: '🚗 Multiple Driver\'s Licenses Detected',
+      sections: [{
+        icon: '🆔',
+        title: `${licenseCount} Driver's Licenses Found`,
+        description: 'The extension will fill the first license. Click "Add Another" button on the Previous U.S. Travel page to add additional licenses.',
+        fieldInfo: 'Fields: US_DRIVER_LICENSE and US_DRIVER_LICENSE_STATE'
+      }]
     });
   }
 }
